@@ -1,68 +1,67 @@
-import os
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+import time
+import uuid
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
-from dotenv import load_dotenv
 
-load_dotenv()
+from server.config import config
+from server.models.schemas import IncidentPayload, AgenticPipelineResponse
+from server.agents.triage_agent import TriageAgent
+from server.agents.remediation_agent import RemediationAgent
 
-app = FastAPI(title="SentryMesh AI API", version="1.0.0")
-
-client = OpenAI(
-base_url="https://api.nebius.ai/v1",
-api_key=os.getenv("NEBIUS_API_KEY")
+app = FastAPI(
+    title="SentryMesh AI - Autonomous Multi-Agent Incident Engine",
+    description="Tiered multi-agent incident response using NVIDIA Nemotron models on Nebius Cloud",
+    version="2.0.0"
 )
 
-class IncidentRequest(BaseModel):
-service_name: str
-error_logs: str
-stack_trace: str
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.post("/api/triage")
-async def triage_incident(data: IncidentRequest):
-try:
-triage_prompt = f"""
-Analyze the following incident logs for service {data.service_name}:
-Logs: {data.error_logs}
-Stack Trace: {data.stack_trace}
+client = OpenAI(
+    base_url=config.NEBIUS_BASE_URL,
+    api_key=config.NEBIUS_API_KEY or "placeholder_key"
+)
 
-    Extract the core anom
-Extract the core anomaly, affected modules, and preliminary error signature.
-    """
-    
-    triage_response = client.chat.completions.create(
-        model="nvidia/nemotron-3-nano-30b-instruct",
-        messages=[{"role": "user", "content": triage_prompt}],
-        temperature=0.1,
-        max_tokens=512
-    )
-    
-    triage_result = triage_response.choices[0].message.content
+triage_agent = TriageAgent(client)
+remediation_agent = RemediationAgent(client)
 
-    reasoning_prompt = f"""
-    Based on this triage output:
-    {triage_result}
-    
-    Perform a comprehensive root-cause analysis and formulate an exact code-level patch strategy.
-    """
-    
-    reasoning_response = client.chat.completions.create(
-        model="nvidia/nemotron-3-ultra-550b-instruct",
-        messages=[{"role": "user", "content": reasoning_prompt}],
-        temperature=0.2,
-        max_tokens=1024
-    )
-    
-    patch_strategy = reasoning_response.choices[0].message.content
+@app.get("/health")
+def health_check():
+    return {"status": "online", "engine": "Nebius Token Factory / NVIDIA Nemotron-3"}
 
-    return {
-        "status": "success",
-        "service": data.service_name,
-        "triage_summary": triage_result,
-        "remediation_strategy": patch_strategy
-    }
-except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
-if name == "main":
-import uvicorn
-uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.post("/api/v1/incident/resolve", response_model=AgenticPipelineResponse)
+async def resolve_incident(payload: IncidentPayload):
+    start_time = time.time()
+    incident_id = f"INC-{uuid.uuid4().hex[:8].upper()}"
+    
+    try:
+        # Step 1: Nano Agent Triage
+        triage_summary = triage_agent.analyze(payload.raw_logs, payload.stack_trace)
+        
+        # Step 2: Ultra Agent Remediation
+        remediation_patch = remediation_agent.generate_patch(
+            triage_summary, payload.raw_logs, payload.stack_trace
+        )
+        
+        elapsed = round(time.time() - start_time, 2)
+        
+        return AgenticPipelineResponse(
+            incident_id=incident_id,
+            service_name=payload.service_name,
+            status="RESOLVED_AND_PATCHED",
+            triage=triage_summary,
+            remediation=remediation_patch,
+            execution_time_seconds=elapsed
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agentic Pipeline Failure: {str(e)}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

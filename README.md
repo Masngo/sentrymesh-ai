@@ -1,14 +1,21 @@
 # SentryMesh AI 🛡️
-> Autonomous Multi-Agent Incident Response & Self-Healing Engine powered by NVIDIA Nemotron & Nebius Token Factory.
+> Autonomous Multi-Agent Incident Response & Code Self-Healing Engine powered by NVIDIA Nemotron models on Nebius Token Factory.
 
-## Overview
-SentryMesh AI reduces incident MTTR (Mean Time To Resolution) by 90% through parallelized log triage (Nemotron-3 Nano) and deep architectural root-cause planning (Nemotron-3 Ultra) running natively on Nebius high-performance infrastructure.
+## Architecture
+SentryMesh AI decouples incident resolution into an agentic pipeline:
+1. **Triage Agent (NVIDIA Nemotron-3 Nano):** Parses high-throughput telemetry, log spikes, and trace dumps to extract anomaly signatures.
+2. **Remediation Agent (NVIDIA Nemotron-3 Ultra):** Evaluates deep system context, performs root-cause analysis, and generates code patches with verification tests.
+
+## Features
+- **FastAPI Core Engine:** High-performance async microservice REST interface.
+- **Streamlit Command Center:** Interactive UI for live telemetry and manual triage overrides.
+- **Docker & Docker Compose:** Ready for instant local or cloud deployment.
 
 ## Quick Start
-1. Clone the repository:
-   ```bash
-   git clone [https://github.com/Masngo/sentrymesh-ai.git](https://github.com/Masngo/sentrymesh-ai.git)
-   cd sentrymesh-ai
-pip install -r requirements.txt
-export NEBIUS_API_KEY="your-nebius-token-factory-key"
-python server/main.py
+```bash
+# 1. Export Nebius Token Factory Key
+export NEBIUS_API_KEY="your-nebius-api-key"
+
+# 2. Spin up using Docker Compose
+docker-compose up --build
+Access the Command Center at http://localhost:8501 and FastAPI Docs at http://localhost:8000/docs.
