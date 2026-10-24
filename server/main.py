@@ -1,7 +1,7 @@
 import os
 import time
 import uuid
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 
@@ -25,12 +25,8 @@ app.add_middleware(
 )
 
 api_key = config.NEBIUS_API_KEY
-
 if api_key and api_key != "your-nebius-api-key-here":
-    client = OpenAI(
-        base_url=config.NEBIUS_BASE_URL,
-        api_key=api_key
-    )
+    client = OpenAI(base_url=config.NEBIUS_BASE_URL, api_key=api_key)
     triage_agent = TriageAgent(client)
     remediation_agent = RemediationAgent(client)
     USE_MOCK = False
@@ -40,7 +36,7 @@ else:
 @app.get("/health")
 def health_check():
     return {
-        "status": "online", 
+        "status": "online",
         "mode": "Nebius Token Factory Live" if not USE_MOCK else "Local Evaluation / Mock Engine",
         "engine": "NVIDIA Nemotron-3 (Nano & Ultra)"
     }
@@ -53,37 +49,12 @@ async def resolve_incident(payload: IncidentPayload):
     if not USE_MOCK:
         try:
             triage_summary = triage_agent.analyze(payload.raw_logs, payload.stack_trace)
-            remediation_patch = remediation_agent.generate_patch(
-                triage_summary, payload.raw_logs, payload.stack_trace
-            )
-        except Exception as e:
-            # Fall back to structured response on API error
-            triage_summary = TriageResult(
-                anomaly_signature=f"Connection Pool Exhaustion in {payload.service_name}",
-                affected_components=["database_pool", "orm_session_handler", "api_worker"],
-                root_cause_category="Resource Exhaustion / Concurrency Limit",
-                confidence_score=0.96
-            )
-            remediation_patch = PatchStrategy(
-                root_cause_explanation="The application failed to release idle database connections under high concurrent load, causing queue pool overflow.",
-                code_patch="""# server/db/session.py
-- engine = create_engine(DB_URL, pool_size=50, max_overflow=10)
-+ engine = create_engine(
-+     DB_URL, 
-+     pool_size=100, 
-+     max_overflow=20, 
-+     pool_timeout=30, 
-+     pool_recycle=1800
-+ )""",
-                verification_steps=[
-                    "pytest tests/test_db_concurrency.py --benchmark",
-                    "helm upgrade --install payment-service ./charts/payment-service"
-                ],
-                rollback_plan="kubectl rollout undo deployment/payment-service"
-            )
-    else:
-        # Mock Response mimicking Nebius Nemotron-3 outputs
-        time.sleep(1.2) # Simulate async processing
+            remediation_patch = remediation_agent.generate_patch(triage_summary, payload.raw_logs, payload.stack_trace)
+        except Exception:
+            USE_MOCK = True
+            
+    if USE_MOCK:
+        time.sleep(1.0)
         triage_summary = TriageResult(
             anomaly_signature=f"Database QueuePool Exhaustion in {payload.service_name}",
             affected_components=["database_pool", "orm_session_handler", "connection_manager"],
@@ -109,7 +80,6 @@ async def resolve_incident(payload: IncidentPayload):
         )
         
     elapsed = round(time.time() - start_time, 2)
-    
     return AgenticPipelineResponse(
         incident_id=incident_id,
         service_name=payload.service_name,

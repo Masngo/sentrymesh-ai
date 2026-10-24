@@ -1,24 +1,20 @@
-version: '3.8'
-
 services:
-  sentrymesh-backend:
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
-      - NEBIUS_API_KEY=${NEBIUS_API_KEY}
-    restart: always
+      - NEBIUS_API_KEY=${NEBIUS_API_KEY:-}
 
-  sentrymesh-ui:
+  ui:
     build:
       context: .
       dockerfile: Dockerfile.ui
     ports:
       - "8501:8501"
-    environment:
-      - BACKEND_URL=http://sentrymesh-backend:8000
     depends_on:
-      - sentrymesh-backend
-    restart: always
+      - backend
+    environment:
+      - STREAMLIT_SERVER_PORT=8501

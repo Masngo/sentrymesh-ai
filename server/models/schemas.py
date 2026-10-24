@@ -1,11 +1,11 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 class IncidentPayload(BaseModel):
-    service_name: str = Field(..., example="payment-gateway")
-    severity: str = Field("HIGH", example="CRITICAL")
-    raw_logs: str = Field(..., example="ERROR: DB Connection Refused on port 5432")
-    stack_trace: str = Field(..., example="Traceback (most recent call last): ... ConnectionTimeoutError")
+    service_name: str = Field(..., description="Name of the affected microservice")
+    severity: str = Field(..., description="Incident severity level (CRITICAL, HIGH, MEDIUM)")
+    raw_logs: str = Field(..., description="Raw log stream snippet or exception header")
+    stack_trace: Optional[str] = Field(None, description="Detailed stack trace if available")
 
 class TriageResult(BaseModel):
     anomaly_signature: str
