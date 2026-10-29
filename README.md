@@ -48,3 +48,17 @@ pip install -r ../requirements.txt
 streamlit run app.py
 🏆 Hackathon Track
 Submitted for the Nebius x NVIDIA Global AI Hackathon — Coding and Agentic Engineering Track.
+
+---
+
+## 📂 Project Structure
+```text
+sentrymesh-ai/
+├── UI/
+│   └── app.py              # Streamlit Mission Control Frontend
+├── server/
+│   └── main.py             # FastAPI Asynchronous Core Engine
+├── requirements.txt        # Python dependency manifest
+├── Dockerfile              # Containerization config
+├── docker-compose.yml      # Multi-service orchestration
+└── README.md               # Project documentation
