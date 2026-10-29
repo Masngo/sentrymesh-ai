@@ -46,6 +46,7 @@ async def resolve_incident(payload: IncidentPayload):
     start_time = time.time()
     incident_id = f"INC-{uuid.uuid4().hex[:8].upper()}"
     
+    global USE_MOCK
     if not USE_MOCK:
         try:
             triage_summary = triage_agent.analyze(payload.raw_logs, payload.stack_trace)
