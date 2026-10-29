@@ -1,11 +1,65 @@
-import streamlit as st
+import os
+import sys
+import time
+import threading
+import importlib
+
 import requests
+import streamlit as st
+import uvicorn
 
 st.set_page_config(
     page_title="SentryMesh AI - Command Center",
     page_icon="🛡️",
     layout="wide"
 )
+
+# Make the repo root importable (UI/app.py -> repo root)
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+
+API_URL = "http://127.0.0.1:8000"
+
+# Candidate locations of your FastAPI `app` object. Edit to match your repo.
+BACKEND_CANDIDATES = [
+    "backend.main",
+    "backend.app.main",
+    "app.main",
+    "server.main",
+    "main",
+]
+
+
+@st.cache_resource
+def start_backend():
+    fastapi_app = None
+    for module_path in BACKEND_CANDIDATES:
+        try:
+            module = importlib.import_module(module_path)
+            fastapi_app = getattr(module, "app")
+            break
+        except (ImportError, AttributeError):
+            continue
+    if fastapi_app is None:
+        return False, "Could not find the FastAPI app. Update BACKEND_CANDIDATES."
+
+    config = uvicorn.Config(fastapi_app, host="127.0.0.1", port=8000, log_level="warning")
+    server = uvicorn.Server(config)
+    threading.Thread(target=server.run, daemon=True).start()
+
+    # Wait up to ~10s for the server to accept connections
+    for _ in range(20):
+        try:
+            requests.get(API_URL + "/docs", timeout=1)
+            return True, "ok"
+        except requests.exceptions.RequestException:
+            time.sleep(0.5)
+    return False, "Backend started but did not respond in time."
+
+
+backend_ok, backend_msg = start_backend()
+if not backend_ok:
+    st.error(f"Backend failed to start: {backend_msg}")
 
 st.title("🛡️ SentryMesh AI Command Center")
 st.markdown("### Autonomous Multi-Agent Incident Response & Self-Healing Engine")
@@ -15,7 +69,7 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("Cluster Status", "Healthy", "99.99% Uptime")
 col2.metric("Active Agents", "2 / 2 Online", "Nano & Ultra")
 col3.metric("MTTR Reduction", "88.4%", "-14.2m avg")
-col4.metric("Backend Engine", "FastAPI + Mock/Nebius", "Active")
+col4.metric("Backend Engine", "FastAPI + Mock/Nebius", "Active" if backend_ok else "Offline")
 
 st.markdown("### ⚡ Trigger Simulated Incident")
 
@@ -33,13 +87,13 @@ if st.button("🚀 Dispatch SentryMesh Agents"):
                 "raw_logs": raw_logs,
                 "stack_trace": stack_trace
             }
-            res = requests.post("http://localhost:8000/api/v1/incident/resolve", json=payload, timeout=10)
+            res = requests.post(f"{API_URL}/api/v1/incident/resolve", json=payload, timeout=60)
             if res.status_code == 200:
                 data = res.json()
                 st.success(f"Incident {data['incident_id']} successfully resolved in {data['execution_time_seconds']}s!")
-                
+
                 tab1, tab2, tab3 = st.tabs(["🔍 Triage Diagnostic", "🛠️ Code Remediation Patch", "📋 Execution Telemetry"])
-                
+
                 with tab1:
                     st.json(data["triage"])
                 with tab2:
@@ -54,4 +108,4 @@ if st.button("🚀 Dispatch SentryMesh Agents"):
             else:
                 st.error(f"Backend error: {res.text}")
         except Exception as e:
-            st.error(f"Could not connect to FastAPI backend at http://localhost:8000. Make sure the server is running. Error: {e}")
+            st.error(f"Could not connect to the backend at {API_URL}. Error: {e}")
