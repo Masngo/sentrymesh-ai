@@ -26,7 +26,6 @@ BACKEND_CANDIDATES = [
 ]
 
 
-@st.cache_resource
 def start_backend():
     fastapi_app = None
     for module_path in BACKEND_CANDIDATES:
