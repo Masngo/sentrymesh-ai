@@ -22,11 +22,7 @@ API_URL = "http://127.0.0.1:8000"
 
 # Candidate locations of your FastAPI `app` object. Edit to match your repo.
 BACKEND_CANDIDATES = [
-    "backend.main",
-    "backend.app.main",
-    "app.main",
     "server.main",
-    "main",
 ]
 
 
